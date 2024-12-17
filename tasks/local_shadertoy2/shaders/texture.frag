@@ -5,11 +5,11 @@
 
 layout(location = 0) out vec4 out_fragColor;
 
-layout(push_constant) uniform params_t
+layout(binding = 0) uniform params_t
 {
-  uvec2 resolution;
+    uvec2 skin_res;
+    uvec2 pic_res;
 } params;
-
 
 // code stolen from here: https://www.shadertoy.com/view/lsf3WH
 
@@ -73,7 +73,7 @@ float noise( in vec2 p )
 
 
 void main() {
-  vec2 uv = gl_FragCoord.xy / params.resolution;
+  vec2 uv = gl_FragCoord.xy / params.skin_res;
 
   float f = 0.0;   
   uv *= 8.0;

@@ -35,6 +35,7 @@ private:
   etna::Image skinTextureImage;
   etna::Image fileTextureImage;
   etna::Sampler defaultSampler;
+  etna::Buffer params;
 
   std::unique_ptr<etna::Window> vkWindow;
   std::unique_ptr<etna::PerFrameCmdMgr> commandManager;

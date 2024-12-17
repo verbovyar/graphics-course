@@ -3,7 +3,13 @@
 layout(binding = 0) uniform sampler2D iChannel0;
 layout(binding = 1) uniform sampler2D iChannel1;
 
-const vec2 iResolution = vec2(1280, 720);
+layout(binding = 2) uniform params_t
+{
+    uvec2 skin_res;
+    uvec2 pic_res;
+} params;
+
+uvec2 iResolution = uvec2(1, 1);
 const float iTime = 1.0f;
 const ivec3 iMouse = ivec3(0.5, 0.5, 0);
 
@@ -249,5 +255,6 @@ void mainImage( out vec4 fragColor, in vec2 fragCoord )
 
 void main()
 {
+    iResolution = params.pic_res;
     mainImage(color_output, gl_FragCoord.xy);
 }

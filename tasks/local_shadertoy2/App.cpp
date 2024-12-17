@@ -90,6 +90,29 @@ App::App()
         .name = "default_sampler"
       });
   }
+
+    struct {
+        glm::uvec2 skin_res;
+        glm::uvec2 pic_res;
+    } params_data = {skinTextureResolution, resolution};
+
+    params = etna::get_context().createBuffer(etna::Buffer::CreateInfo{
+      .size = sizeof(params_data),
+      .bufferUsage = vk::BufferUsageFlagBits::eUniformBuffer | vk::BufferUsageFlagBits::eTransferDst,
+      .memoryUsage = VMA_MEMORY_USAGE_AUTO,
+      .name = "params",
+    });
+
+    etna::BlockingTransferHelper helper({sizeof(params_data)});
+    helper.uploadBuffer(
+      *oneShotManager,
+      params,
+      0,
+      std::span(
+        reinterpret_cast<const char*>(&params_data),
+        reinterpret_cast<const char*>(&params_data) + sizeof(params_data)
+      )
+    );
 }
 
 App::~App()
@@ -143,6 +166,7 @@ void App::drawFrame()
     auto [backbuffer, backbufferView, backbufferAvailableSem] = *nextSwapchainImage;
 
     ETNA_CHECK_VK_RESULT(currentCmdBuf.begin(vk::CommandBufferBeginInfo{}));
+    
     {
       etna::set_state(
         currentCmdBuf,
@@ -157,14 +181,19 @@ void App::drawFrame()
       {
         etna::RenderTargetState state{currentCmdBuf, {{}, {skinTextureResolution.x, skinTextureResolution.y}},
           {{skinTextureImage.get(), skinTextureImage.getView({})}}, {}};
-        auto skinInfo = etna::get_shader_program("skinTexture");
 
         currentCmdBuf.bindPipeline(vk::PipelineBindPoint::eGraphics, skinTexturePipeline.getVkPipeline());
 
-        glm::uvec2 res = skinTextureResolution;
-        currentCmdBuf.pushConstants(
-          skinTexturePipeline.getVkPipelineLayout(), vk::ShaderStageFlagBits::eFragment,
-          0, sizeof(res), &res);
+        auto skinInfo = etna::get_shader_program("skinTexture");
+        auto set = etna::create_descriptor_set(
+          skinInfo.getDescriptorLayoutId(0),
+          currentCmdBuf,
+          {
+            etna::Binding{0, params.genBinding()},
+          });
+        vk::DescriptorSet vkSet = set.getVkSet();
+        currentCmdBuf.bindDescriptorSets(
+          vk::PipelineBindPoint::eGraphics, skinTexturePipeline.getVkPipelineLayout(), 0, 1, &vkSet, 0, nullptr);
 
         currentCmdBuf.draw(3, 1, 0, 0);
       }
@@ -200,26 +229,20 @@ void App::drawFrame()
         etna::RenderTargetState state{currentCmdBuf, {{}, {resolution.x, resolution.y}},
           {{backbuffer, backbufferView}}, {}};
 
+        currentCmdBuf.bindPipeline(vk::PipelineBindPoint::eGraphics, fragVertPipeline.getVkPipeline());
+
         auto fragVertInfo = etna::get_shader_program("shadertoy2");
         auto set = etna::create_descriptor_set(
           fragVertInfo.getDescriptorLayoutId(0),
           currentCmdBuf,
           {
             etna::Binding{0, skinTextureImage.genBinding(defaultSampler.get(), vk::ImageLayout::eShaderReadOnlyOptimal)},
-            etna::Binding{1, fileTextureImage.genBinding(defaultSampler.get(), vk::ImageLayout::eShaderReadOnlyOptimal)}
+            etna::Binding{1, fileTextureImage.genBinding(defaultSampler.get(), vk::ImageLayout::eShaderReadOnlyOptimal)},
+            etna::Binding{2, params.genBinding()},
           });
-
         vk::DescriptorSet vkSet = set.getVkSet();
-
-        currentCmdBuf.bindPipeline(vk::PipelineBindPoint::eGraphics, fragVertPipeline.getVkPipeline());
         currentCmdBuf.bindDescriptorSets(
           vk::PipelineBindPoint::eGraphics, fragVertPipeline.getVkPipelineLayout(), 0, 1, &vkSet, 0, nullptr);
-
-        glm::uvec2 res = resolution;
-
-        currentCmdBuf.pushConstants(
-          fragVertPipeline.getVkPipelineLayout(), vk::ShaderStageFlagBits::eFragment,
-          0, sizeof(res), &res);
 
         currentCmdBuf.draw(3, 1, 0, 0);
       }
